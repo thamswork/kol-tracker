@@ -205,9 +205,11 @@ async function monthlySummary(db) {
 
   const firstSnapByContent = {};
   const latestSnapByContent = {};
+  let mostRecentTimestamp = null;
   for (const s of snapshots) {
     if (!firstSnapByContent[s.content_id]) firstSnapByContent[s.content_id] = s.timestamp;
     latestSnapByContent[s.content_id] = s; // last write wins since sorted ascending
+    if (!mostRecentTimestamp || s.timestamp > mostRecentTimestamp) mostRecentTimestamp = s.timestamp;
   }
 
   const months = {};
@@ -244,6 +246,7 @@ async function monthlySummary(db) {
         topPerformer: b.top ? b.top.id : null,
         totalSpend: b.spend,
         blendedCostPer1k: b.views > 0 ? (b.spend / b.views) * 1000 : null,
+        lastUpdated: mostRecentTimestamp,
       };
     });
 

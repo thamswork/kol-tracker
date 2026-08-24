@@ -314,6 +314,7 @@
       <div class="stat"><div class="num">—</div><div class="label">Total engagements</div></div>
       <div class="stat"><div class="num">—</div><div class="label">Total spend</div></div>
     </div>
+    <div class="test-result" id="lastUpdated" style="margin-top:8px;"></div>
   </section>
 
   <section>
@@ -344,7 +345,7 @@
 </div>
 
 <script>
-  const API_URL = 'https://kol-tracker-api.tyme-sak.workers.dev';
+  const API_URL = 'PASTE_YOUR_WORKER_URL_HERE';
 
   const submitForm = document.getElementById('submitForm');
   const submitStatus = document.getElementById('submitStatus');
@@ -423,6 +424,8 @@
             `<div class="stat"><div class="num">${num ?? '—'}</div><div class="label">${label}</div></div>`
         )
         .join('');
+      const updatedEl = document.getElementById('lastUpdated');
+      updatedEl.textContent = latest.lastUpdated ? 'Last updated: ' + formatDate(latest.lastUpdated) : '';
     } catch (err) {
       console.error('Could not load summary', err);
     }
