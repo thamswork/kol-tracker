@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Seed Log — KOL Content Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #12151A;
+    --surface: #1B1F27;
+    --surface-2: #232833;
+    --line: #2E3440;
+    --text: #E7E5DE;
+    --muted: #8B92A0;
+    --accent: #E8A33D;
+    --accent-dim: #6B5530;
+    --good: #6FCF97;
+    --bad: #E8695F;
+    --radius: 6px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  header.masthead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 20px;
+    margin-bottom: 40px;
+  }
+  header.masthead h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  header.masthead .stamp {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  section { margin-bottom: 56px; }
+  h2.section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    margin: 0 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2.section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  /* Entry ticket / submission form */
+  form.ticket {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  form.ticket .full { grid-column: 1 / -1; }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  input, select {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+  }
+  input:focus, select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: var(--accent);
+  }
+  button.submit {
+    grid-column: 1 / -1;
+    background: var(--accent);
+    color: #1A1300;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    transition: filter 0.15s ease;
+  }
+  button.submit:hover { filter: brightness(1.08); }
+  button.submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  #submitStatus {
+    grid-column: 1 / -1;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    min-height: 18px;
+  }
+  #submitStatus.ok { color: var(--good); }
+  #submitStatus.err { color: var(--bad); }
+
+  /* Monthly summary cards */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .stat {
+    background: var(--surface);
+    padding: 18px 16px;
+  }
+  .stat .num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stat .label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 4px;
+  }
+
+  /* Manifest table */
+  table.manifest {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.manifest th {
+    text-align: left;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 12px;
+  }
+  table.manifest td {
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  table.manifest tr:hover td { background: var(--surface); }
+  .id-stamp {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--accent);
+    font-size: 12px;
+  }
+  .status-active { color: var(--good); font-size: 12px; }
+  .status-done { color: var(--muted); font-size: 12px; }
+  a.post-link { color: var(--text); text-decoration: underline; text-decoration-color: var(--line); }
+  a.post-link:hover { text-decoration-color: var(--accent); }
+
+  .empty-note {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 20px 0;
+  }
+
+  footer {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 64px;
+  }
+
+  @media (max-width: 640px) {
+    form.ticket { grid-template-columns: 1fr; }
+    header.masthead { flex-direction: column; align-items: flex-start; gap: 6px; }
+    table.manifest { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <h1>Seed Log</h1>
+    <span class="stamp" id="entryCount">— entries logged</span>
+  </header>
+
+  <section>
+    <h2 class="section-label">01 · Log new content</h2>
+    <form class="ticket" id="submitForm">
+      <div>
+        <label for="kol">KOL / creator name</label>
+        <input type="text" id="kol" required placeholder="e.g. @creatorname" />
+      </div>
+      <div>
+        <label for="platform">Platform</label>
+        <select id="platform" required>
+          <option value="Instagram">Instagram</option>
+          <option value="TikTok">TikTok</option>
+        </select>
+      </div>
+      <div class="full">
+        <label for="url">Content URL</label>
+        <input type="url" id="url" required placeholder="https://..." />
+      </div>
+      <div>
+        <label for="feePaid">Fee paid (optional)</label>
+        <input type="number" id="feePaid" placeholder="0" min="0" step="0.01" />
+      </div>
+      <div>
+        <label for="datePosted">Date posted (optional, if known)</label>
+        <input type="date" id="datePosted" />
+      </div>
+      <button type="submit" class="submit" id="submitBtn">Log content</button>
+      <div id="submitStatus"></div>
+    </form>
+  </section>
+
+  <section>
+    <h2 class="section-label">02 · This month</h2>
+    <div class="summary-grid" id="summaryGrid">
+      <div class="stat"><div class="num">—</div><div class="label">Content seeded</div></div>
+      <div class="stat"><div class="num">—</div><div class="label">Total views</div></div>
+      <div class="stat"><div class="num">—</div><div class="label">Total engagements</div></div>
+      <div class="stat"><div class="num">—</div><div class="label">Total spend</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-label">03 · All tracked content</h2>
+    <table class="manifest" id="manifestTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>KOL</th>
+          <th>Platform</th>
+          <th>Link</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="manifestBody">
+        <tr><td colspan="5" class="empty-note">Loading — or set API_URL in the script to connect.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>Backed by Google Sheets · synced daily via Apify</footer>
+</div>
+
+<script>
+  // ---- CONFIGURE THIS ----
+  // Paste your Apps Script Web App deployment URL here (ends in /exec).
+  const API_URL = 'https://script.google.com/macros/s/AKfycbzh_f4qR2sJfrUkxTczxAUX7SUca2zt8bQtNrI2UPw33-sGr29GUQ8Do5JHwh0N8ouT/exec';
+  // -------------------------
+
+  const submitForm = document.getElementById('submitForm');
+  const submitStatus = document.getElementById('submitStatus');
+  const submitBtn = document.getElementById('submitBtn');
+
+  submitForm.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    submitBtn.disabled = true;
+    submitStatus.textContent = 'Logging...';
+    submitStatus.className = '';
+
+    const params = new URLSearchParams({
+      action: 'submit',
+      kol: document.getElementById('kol').value,
+      platform: document.getElementById('platform').value,
+      url: document.getElementById('url').value,
+      feePaid: document.getElementById('feePaid').value,
+      datePosted: document.getElementById('datePosted').value,
+    });
+
+    try {
+      const res = await fetch(API_URL + '?' + params.toString());
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      submitStatus.textContent = 'Logged as ' + data.contentId + '.';
+      submitStatus.className = 'ok';
+      submitForm.reset();
+      loadManifest();
+    } catch (err) {
+      submitStatus.textContent = 'Failed: ' + err.message;
+      submitStatus.className = 'err';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  async function loadSummary() {
+    if (API_URL.indexOf('PASTE_YOUR') === 0) return;
+    try {
+      const res = await fetch(API_URL + '?action=summary');
+      const data = await res.json();
+      const rows = data.rows || [];
+      const latest = rows[rows.length - 1];
+      const grid = document.getElementById('summaryGrid');
+      if (!latest) return;
+      grid.innerHTML = [
+        ['Content seeded', latest['Total Content Seeded']],
+        ['Total views', formatNum(latest['Total Views'])],
+        ['Total engagements', formatNum(latest['Total Engagements'])],
+        ['Total spend', latest['Total Spend'] ? '$' + latest['Total Spend'] : '—'],
+      ]
+        .map(
+          ([label, num]) =>
+            `<div class="stat"><div class="num">${num ?? '—'}</div><div class="label">${label}</div></div>`
+        )
+        .join('');
+    } catch (err) {
+      console.error('Summary load failed', err);
+    }
+  }
+
+  async function loadManifest() {
+    const body = document.getElementById('manifestBody');
+    if (API_URL.indexOf('PASTE_YOUR') === 0) {
+      body.innerHTML = '<tr><td colspan="5" class="empty-note">Set API_URL at the bottom of this file to your Apps Script Web App URL.</td></tr>';
+      return;
+    }
+    try {
+      const res = await fetch(API_URL + '?action=list');
+      const data = await res.json();
+      const rows = data.rows || [];
+      document.getElementById('entryCount').textContent = rows.length + ' entries logged';
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="5" class="empty-note">No content logged yet — use the form above.</td></tr>';
+        return;
+      }
+      body.innerHTML = rows
+        .map(
+          (r) => `
+        <tr>
+          <td class="id-stamp">${r['Content ID'] ?? ''}</td>
+          <td>${r['KOL / Creator Name'] ?? ''}</td>
+          <td>${r['Platform'] ?? ''}</td>
+          <td><a class="post-link" href="${r['Content URL']}" target="_blank" rel="noopener">view</a></td>
+          <td class="${r['Status'] === 'Active' ? 'status-active' : 'status-done'}">${r['Status'] ?? ''}</td>
+        </tr>`
+        )
+        .join('');
+    } catch (err) {
+      body.innerHTML = '<tr><td colspan="5" class="empty-note">Failed to load: ' + err.message + '</td></tr>';
+    }
+  }
+
+  function formatNum(n) {
+    if (n === undefined || n === null || n === '') return '—';
+    return Number(n).toLocaleString();
+  }
+
+  loadSummary();
+  loadManifest();
+</script>
+</body>
+</html>
