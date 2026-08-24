@@ -284,6 +284,10 @@
 
   <section>
     <h2>All tracked content</h2>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <span></span>
+      <button class="test-btn" id="syncSheetsBtn" onclick="syncSheets()">Sync to Google Sheets</button>
+    </div>
     <table id="manifestTable">
       <thead>
         <tr>
@@ -305,7 +309,7 @@
 </div>
 
 <script>
-  const API_URL = 'https://script.google.com/macros/s/AKfycbzh_f4qR2sJfrUkxTczxAUX7SUca2zt8bQtNrI2UPw33-sGr29GUQ8Do5JHwh0N8ouT/exec';
+  const API_URL = 'https://kol-tracker-api.tyme-sak.workers.dev';
 
   const submitForm = document.getElementById('submitForm');
   const submitStatus = document.getElementById('submitStatus');
@@ -317,17 +321,20 @@
     submitStatus.textContent = 'Logging...';
     submitStatus.className = '';
 
-    const params = new URLSearchParams({
-      action: 'submit',
+    const payload = {
       kol: document.getElementById('kol').value,
       platform: document.getElementById('platform').value,
       url: document.getElementById('url').value,
       feePaid: document.getElementById('feePaid').value,
       datePosted: document.getElementById('datePosted').value,
-    });
+    };
 
     try {
-      const res = await fetch(API_URL + '?' + params.toString());
+      const res = await fetch(API_URL + '/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       submitStatus.textContent = 'Logged as ' + data.contentId + '.';
@@ -342,19 +349,39 @@
     }
   });
 
+  async function syncSheets() {
+    const btn = document.getElementById('syncSheetsBtn');
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+    try {
+      const res = await fetch(API_URL + '/api/sync-sheets', { method: 'POST' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      btn.textContent = 'Synced';
+    } catch (err) {
+      btn.textContent = 'Sync failed';
+      console.error(err);
+    } finally {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = 'Sync to Google Sheets';
+      }, 2500);
+    }
+  }
+
   async function loadSummary() {
     try {
-      const res = await fetch(API_URL + '?action=summary');
+      const res = await fetch(API_URL + '/api/summary');
       const data = await res.json();
       const rows = data.rows || [];
       const latest = rows[rows.length - 1];
       if (!latest) return;
       const grid = document.getElementById('summaryGrid');
       grid.innerHTML = [
-        ['Content logged', latest['Total Content Seeded']],
-        ['Total views', formatNum(latest['Total Views'])],
-        ['Total engagements', formatNum(latest['Total Engagements'])],
-        ['Total spend', latest['Total Spend'] ? '$' + latest['Total Spend'] : '—'],
+        ['Content logged', latest.totalContentSeeded],
+        ['Total views', formatNum(latest.totalViews)],
+        ['Total engagements', formatNum(latest.totalEngagements)],
+        ['Total spend', latest.totalSpend ? '$' + latest.totalSpend : '—'],
       ]
         .map(
           ([label, num]) =>
@@ -369,7 +396,7 @@
   async function loadManifest() {
     const body = document.getElementById('manifestBody');
     try {
-      const res = await fetch(API_URL + '?action=list');
+      const res = await fetch(API_URL + '/api/list');
       const data = await res.json();
       const rows = data.rows || [];
       if (!rows.length) {
@@ -378,21 +405,19 @@
       }
       body.innerHTML = rows
         .map((r) => {
-          const id = r['Content ID'] ?? '';
-          const status = r['Status'];
-          const statusHtml = status
-            ? `<span class="status ${status === 'Active' ? 'status-active' : 'status-done'}">${status}</span>`
+          const statusHtml = r.status
+            ? `<span class="status ${r.status === 'Active' ? 'status-active' : 'status-done'}">${r.status}</span>`
             : `<span class="status-unset">not set</span>`;
           return `
         <tr>
-          <td class="content-id">${id}</td>
-          <td>${r['KOL / Creator Name'] || '—'}</td>
-          <td>${r['Platform'] ?? ''}</td>
-          <td><a href="${r['Content URL']}" target="_blank" rel="noopener">view</a></td>
+          <td class="content-id">${r.id}</td>
+          <td>${r.kol || '—'}</td>
+          <td>${r.platform ?? ''}</td>
+          <td><a href="${r.url}" target="_blank" rel="noopener">view</a></td>
           <td>${statusHtml}</td>
           <td>
-            <button class="test-btn" onclick="runTest('${id}', this)">Run test</button>
-            <div class="test-result" id="result-${id}"></div>
+            <button class="test-btn" onclick="runTest('${r.id}', this)">Run test</button>
+            <div class="test-result" id="result-${r.id}"></div>
           </td>
         </tr>`;
         })
@@ -410,7 +435,11 @@
     resultEl.className = 'test-result';
 
     try {
-      const res = await fetch(API_URL + '?action=testFetch&contentId=' + encodeURIComponent(contentId));
+      const res = await fetch(API_URL + '/api/test-fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentId }),
+      });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       resultEl.textContent = `${formatNum(data.views)} views, ${formatNum(data.likes)} likes, ${formatNum(data.comments)} comments`;

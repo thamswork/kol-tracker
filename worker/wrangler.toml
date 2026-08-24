@@ -1,0 +1,13 @@
+name = "kol-tracker-api"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kol-tracker"
+database_id = "4f113270-bb36-49c9-85b0-7c159e1465f7"
+
+# Runs the full pipeline (fetch performance + push to Sheets) daily at 6am UTC.
+# Adjust the hour to your timezone — this is UTC, not local time.
+[triggers]
+crons = ["0 6 * * *"]
