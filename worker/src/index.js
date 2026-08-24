@@ -44,6 +44,9 @@ export default {
       if (url.pathname === '/api/reports' && request.method === 'GET') {
         return json(await reportsFor(env.DB, url.searchParams.get('contentId')), cors);
       }
+      if (url.pathname === '/api/history' && request.method === 'GET') {
+        return json(await historyFor(env.DB, url.searchParams.get('contentId')), cors);
+      }
       if (url.pathname === '/api/submit' && request.method === 'POST') {
         const body = await request.json();
         return json(await submitContent(env.DB, body), cors);
@@ -181,6 +184,17 @@ function closestAtOrBefore(sortedSnaps, target) {
     if (new Date(s.timestamp + 'Z') <= target) best = s;
   }
   return best;
+}
+
+// Every check ever recorded for one piece of content, oldest first —
+// this is the raw timeline behind the "History" view on the frontend.
+async function historyFor(db, contentId) {
+  if (!contentId) return { error: 'Missing contentId.' };
+  const { results } = await db
+    .prepare('SELECT * FROM snapshots WHERE content_id = ? ORDER BY timestamp ASC')
+    .bind(contentId)
+    .all();
+  return { rows: results };
 }
 
 // ---------- MONTHLY SUMMARY ----------

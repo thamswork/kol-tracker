@@ -212,6 +212,40 @@
   }
   .test-result.err { color: var(--bad); }
 
+  .history-row td {
+    background: var(--bg);
+    padding: 0;
+  }
+  .history-panel {
+    padding: 16px 18px 20px;
+  }
+  .history-panel h3 {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin: 0 0 10px;
+  }
+  .history-panel table {
+    border: none;
+    font-size: 13px;
+  }
+  .history-panel th, .history-panel td {
+    padding: 8px 10px;
+    background: var(--surface);
+  }
+  .checkpoint-row td { font-weight: 500; }
+  .checkpoint-label {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+
   .empty-note {
     color: var(--muted);
     font-size: 14px;
@@ -297,10 +331,11 @@
           <th>Link</th>
           <th>Status</th>
           <th>Performance</th>
+          <th>History</th>
         </tr>
       </thead>
       <tbody id="manifestBody">
-        <tr><td colspan="6" class="empty-note">Loading...</td></tr>
+        <tr><td colspan="7" class="empty-note">Loading...</td></tr>
       </tbody>
     </table>
   </section>
@@ -309,7 +344,7 @@
 </div>
 
 <script>
-  const API_URL = 'https://kol-tracker-api.tyme-sak.workers.dev';
+  const API_URL = 'PASTE_YOUR_WORKER_URL_HERE';
 
   const submitForm = document.getElementById('submitForm');
   const submitStatus = document.getElementById('submitStatus');
@@ -400,7 +435,7 @@
       const data = await res.json();
       const rows = data.rows || [];
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="6" class="empty-note">Nothing logged yet. Use the form above to add your first link.</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" class="empty-note">Nothing logged yet. Use the form above to add your first link.</td></tr>';
         return;
       }
       body.innerHTML = rows
@@ -419,12 +454,90 @@
             <button class="test-btn" onclick="runTest('${r.id}', this)">Run test</button>
             <div class="test-result" id="result-${r.id}"></div>
           </td>
+          <td><button class="test-btn" onclick="toggleHistory('${r.id}', this)">Show history</button></td>
+        </tr>
+        <tr class="history-row" id="history-row-${r.id}" style="display:none;">
+          <td colspan="7"><div class="history-panel" id="history-panel-${r.id}"></div></td>
         </tr>`;
         })
         .join('');
     } catch (err) {
-      body.innerHTML = '<tr><td colspan="6" class="empty-note">Could not load: ' + err.message + '</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="empty-note">Could not load: ' + err.message + '</td></tr>';
     }
+  }
+
+  async function toggleHistory(contentId, btn) {
+    const row = document.getElementById('history-row-' + contentId);
+    const panel = document.getElementById('history-panel-' + contentId);
+    const isOpen = row.style.display !== 'none';
+
+    if (isOpen) {
+      row.style.display = 'none';
+      btn.textContent = 'Show history';
+      return;
+    }
+
+    row.style.display = 'table-row';
+    btn.textContent = 'Hide history';
+    panel.innerHTML = '<div class="empty-note">Loading history...</div>';
+
+    try {
+      const [historyRes, reportsRes] = await Promise.all([
+        fetch(API_URL + '/api/history?contentId=' + encodeURIComponent(contentId)),
+        fetch(API_URL + '/api/reports?contentId=' + encodeURIComponent(contentId)),
+      ]);
+      const history = (await historyRes.json()).rows || [];
+      const reports = (await reportsRes.json()).rows || [];
+
+      if (!history.length) {
+        panel.innerHTML = '<div class="empty-note">No checks recorded yet. Click "Run test" above, or wait for the daily sync.</div>';
+        return;
+      }
+
+      let html = '';
+
+      if (reports.length) {
+        html += '<h3>Checkpoints</h3><table><tbody>';
+        html += reports
+          .map(
+            (r) => `
+          <tr class="checkpoint-row">
+            <td><span class="checkpoint-label">${r.days}</span></td>
+            <td>${formatDate(r.snapshotDate)}</td>
+            <td>${formatNum(r.views)} views</td>
+            <td>${formatNum(r.likes)} likes</td>
+            <td>${formatNum(r.comments)} comments</td>
+          </tr>`
+          )
+          .join('');
+        html += '</tbody></table>';
+      }
+
+      html += '<h3 style="margin-top:16px;">Full timeline</h3><table><thead><tr><th>Date</th><th>Views</th><th>Likes</th><th>Comments</th><th>Shares</th></tr></thead><tbody>';
+      html += history
+        .map(
+          (h) => `
+        <tr>
+          <td>${formatDate(h.timestamp)}</td>
+          <td>${formatNum(h.views)}</td>
+          <td>${formatNum(h.likes)}</td>
+          <td>${formatNum(h.comments)}</td>
+          <td>${formatNum(h.shares)}</td>
+        </tr>`
+        )
+        .join('');
+      html += '</tbody></table>';
+
+      panel.innerHTML = html;
+    } catch (err) {
+      panel.innerHTML = '<div class="empty-note">Could not load history: ' + err.message + '</div>';
+    }
+  }
+
+  function formatDate(d) {
+    if (!d) return '—';
+    const date = new Date(d.includes('Z') ? d : d + 'Z');
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   async function runTest(contentId, btn) {
