@@ -188,8 +188,29 @@
   }
   .status-active { color: var(--good); background: var(--accent-soft); }
   .status-done { color: var(--muted); background: var(--bg); }
+  .status-unset { color: var(--muted); }
   a { color: var(--text); text-decoration: underline; text-decoration-color: var(--line); font-weight: 500; }
   a:hover { text-decoration-color: var(--accent); }
+
+  .test-btn {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .test-btn:hover { border-color: var(--accent); }
+  .test-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .test-result {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .test-result.err { color: var(--bad); }
 
   .empty-note {
     color: var(--muted);
@@ -271,10 +292,11 @@
           <th>Platform</th>
           <th>Link</th>
           <th>Status</th>
+          <th>Performance</th>
         </tr>
       </thead>
       <tbody id="manifestBody">
-        <tr><td colspan="5" class="empty-note">Loading...</td></tr>
+        <tr><td colspan="6" class="empty-note">Loading...</td></tr>
       </tbody>
     </table>
   </section>
@@ -351,23 +373,54 @@
       const data = await res.json();
       const rows = data.rows || [];
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="5" class="empty-note">Nothing logged yet. Use the form above to add your first link.</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" class="empty-note">Nothing logged yet. Use the form above to add your first link.</td></tr>';
         return;
       }
       body.innerHTML = rows
-        .map(
-          (r) => `
+        .map((r) => {
+          const id = r['Content ID'] ?? '';
+          const status = r['Status'];
+          const statusHtml = status
+            ? `<span class="status ${status === 'Active' ? 'status-active' : 'status-done'}">${status}</span>`
+            : `<span class="status-unset">not set</span>`;
+          return `
         <tr>
-          <td class="content-id">${r['Content ID'] ?? ''}</td>
-          <td>${r['KOL / Creator Name'] ?? ''}</td>
+          <td class="content-id">${id}</td>
+          <td>${r['KOL / Creator Name'] || '—'}</td>
           <td>${r['Platform'] ?? ''}</td>
           <td><a href="${r['Content URL']}" target="_blank" rel="noopener">view</a></td>
-          <td><span class="status ${r['Status'] === 'Active' ? 'status-active' : 'status-done'}">${r['Status'] ?? ''}</span></td>
-        </tr>`
-        )
+          <td>${statusHtml}</td>
+          <td>
+            <button class="test-btn" onclick="runTest('${id}', this)">Run test</button>
+            <div class="test-result" id="result-${id}"></div>
+          </td>
+        </tr>`;
+        })
         .join('');
     } catch (err) {
-      body.innerHTML = '<tr><td colspan="5" class="empty-note">Could not load: ' + err.message + '</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="empty-note">Could not load: ' + err.message + '</td></tr>';
+    }
+  }
+
+  async function runTest(contentId, btn) {
+    const resultEl = document.getElementById('result-' + contentId);
+    btn.disabled = true;
+    btn.textContent = 'Fetching...';
+    resultEl.textContent = '';
+    resultEl.className = 'test-result';
+
+    try {
+      const res = await fetch(API_URL + '?action=testFetch&contentId=' + encodeURIComponent(contentId));
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      resultEl.textContent = `${formatNum(data.views)} views, ${formatNum(data.likes)} likes, ${formatNum(data.comments)} comments`;
+      btn.textContent = 'Fetched';
+    } catch (err) {
+      resultEl.textContent = 'Failed: ' + err.message;
+      resultEl.className = 'test-result err';
+      btn.textContent = 'Run test';
+    } finally {
+      btn.disabled = false;
     }
   }
 
