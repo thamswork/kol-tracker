@@ -108,8 +108,8 @@ function validatePostUrl(platform, url) {
     if (!ok) return { ok: false, error: 'That looks like a profile link, not a specific post. Paste the direct post or reel link.' };
   }
   if (platform === 'TikTok') {
-    if (!lower.includes('/video/')) {
-      return { ok: false, error: 'That looks like a profile link, not a specific video. Paste the direct video link.' };
+    if (!lower.includes('/video/') && !lower.includes('/photo/')) {
+      return { ok: false, error: 'That looks like a profile link, not a specific video or photo post. Paste the direct link.' };
     }
   }
   return { ok: true };
@@ -289,13 +289,20 @@ function matchUrl(platform, item, urls) {
 }
 
 function extractTikTokId(url) {
-  const m = String(url).match(/\/video\/(\d+)/);
+  const m = String(url).match(/\/(?:video|photo)\/(\d+)/);
   return m ? m[1] : null;
 }
 
 function normalizeItem(platform, item) {
   if (platform === 'TikTok') {
-    return { views: item.playCount || null, likes: item.diggCount || null, comments: item.commentCount || null, shares: item.shareCount || null, notes: '' };
+    const views = item.playCount || null;
+    return {
+      views,
+      likes: item.diggCount || null,
+      comments: item.commentCount || null,
+      shares: item.shareCount || null,
+      notes: views ? '' : 'No view count returned (photo posts sometimes report views differently than videos)',
+    };
   }
   const views = item.videoPlayCount || item.videoViewCount || null;
   return {
