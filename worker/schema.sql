@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS content (
   fee_paid REAL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Done')),
   notes TEXT,
+  source TEXT NOT NULL DEFAULT 'KOL' CHECK (source IN ('KOL', 'Owned')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

@@ -36,10 +36,10 @@ export default {
 
     try {
       if (url.pathname === '/api/list' && request.method === 'GET') {
-        return json(await listContent(env.DB), cors);
+        return json(await listContent(env.DB, url.searchParams.get('source')), cors);
       }
       if (url.pathname === '/api/summary' && request.method === 'GET') {
-        return json(await monthlySummary(env.DB), cors);
+        return json(await monthlySummary(env.DB, url.searchParams.get('source')), cors);
       }
       if (url.pathname === '/api/reports' && request.method === 'GET') {
         return json(await reportsFor(env.DB, url.searchParams.get('contentId')), cors);
@@ -77,8 +77,9 @@ async function runDailyPipeline(env) {
 
 // ---------- D1 QUERIES ----------
 
-async function listContent(db) {
-  const { results } = await db.prepare('SELECT * FROM content ORDER BY created_at DESC').all();
+async function listContent(db, source) {
+  const query = source ? db.prepare('SELECT * FROM content WHERE source = ? ORDER BY created_at DESC').bind(source) : db.prepare('SELECT * FROM content ORDER BY created_at DESC');
+  const { results } = await query.all();
   return { rows: results };
 }
 
@@ -89,13 +90,14 @@ async function submitContent(db, params) {
   const check = validatePostUrl(params.platform, params.url);
   if (!check.ok) return { error: check.error };
 
+  const source = params.source === 'Owned' ? 'Owned' : 'KOL';
   const id = 'C' + crypto.randomUUID().slice(0, 8);
   await db
     .prepare(
-      `INSERT INTO content (id, kol, platform, url, date_posted, fee_paid, status, notes)
-       VALUES (?, ?, ?, ?, ?, ?, 'Active', ?)`
+      `INSERT INTO content (id, kol, platform, url, date_posted, fee_paid, status, notes, source)
+       VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?)`
     )
-    .bind(id, params.kol, params.platform, params.url, params.datePosted || null, params.feePaid || 0, params.notes || null)
+    .bind(id, params.kol, params.platform, params.url, params.datePosted || null, params.feePaid || 0, params.notes || null, source)
     .run();
 
   return { success: true, contentId: id };
@@ -199,9 +201,14 @@ async function historyFor(db, contentId) {
 
 // ---------- MONTHLY SUMMARY ----------
 
-async function monthlySummary(db) {
-  const content = (await db.prepare('SELECT * FROM content').all()).results;
-  const snapshots = (await db.prepare('SELECT * FROM snapshots ORDER BY timestamp ASC').all()).results;
+async function monthlySummary(db, source) {
+  const content = source
+    ? (await db.prepare('SELECT * FROM content WHERE source = ?').bind(source).all()).results
+    : (await db.prepare('SELECT * FROM content').all()).results;
+  const contentIds = new Set(content.map((c) => c.id));
+  const snapshots = (await db.prepare('SELECT * FROM snapshots ORDER BY timestamp ASC').all()).results.filter((s) =>
+    contentIds.has(s.content_id)
+  );
 
   const firstSnapByContent = {};
   const latestSnapByContent = {};
