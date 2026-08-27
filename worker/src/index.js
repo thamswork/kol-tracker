@@ -23,7 +23,7 @@
  *   (scheduled) daily cron               — fetches performance for all active content, then pushes to Sheets
  */
 
-const ACTOR_INSTAGRAM_POST = 'apidojo~instagram-scraper';
+const ACTOR_INSTAGRAM_POST = 'shu8hvrXbJbY3Eb9W'; // apify/instagram-scraper (raw ID, confirmed via dataset trace — apidojo's actor of a similar name is a different, unsuited actor)
 const ACTOR_TIKTOK_VIDEO = 'clockworks~tiktok-scraper';
 const REPORT_CHECKPOINTS = [7, 15, 30];
 
@@ -284,7 +284,7 @@ async function fetchBatch(platform, urls, token) {
   const input =
     platform === 'TikTok'
       ? { postURLs: urls, shouldDownloadVideos: false }
-      : { startUrls: urls, maxItems: urls.length };
+      : { directUrls: urls, resultsType: 'details' };
 
   let items;
   try {
