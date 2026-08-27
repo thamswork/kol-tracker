@@ -7,7 +7,8 @@ binding = "DB"
 database_name = "kol-tracker"
 database_id = "4f113270-bb36-49c9-85b0-7c159e1465f7"
 
-# Runs the full pipeline (fetch performance + push to Sheets) daily at 6am UTC.
-# Adjust the hour to your timezone — this is UTC, not local time.
+# Runs the full pipeline (fetch performance + push to Sheets) daily.
+# This is 6am Bangkok time (UTC+7) — 23:00 UTC the day before, since
+# cron schedules always run in UTC regardless of where the Worker runs.
 [triggers]
-crons = ["0 6 * * *"]
+crons = ["0 23 * * *"]
