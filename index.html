@@ -324,7 +324,7 @@
         <label for="kol" id="kolLabel">Creator name</label>
         <input type="text" id="kol" required placeholder="e.g. @creatorname" />
       </div>
-      <div>
+      <div id="platformField">
         <label for="platform">Platform</label>
         <select id="platform" required>
           <option value="Instagram">Instagram</option>
@@ -339,7 +339,7 @@
         <label for="feePaid">Fee paid <span class="hint">(optional)</span></label>
         <input type="number" id="feePaid" placeholder="0" min="0" step="0.01" />
       </div>
-      <div>
+      <div id="datePostedField">
         <label for="datePosted">Date posted <span class="hint">(optional, if known)</span></label>
         <input type="date" id="datePosted" />
       </div>
@@ -398,9 +398,15 @@
   function switchSource(source) {
     currentSource = source;
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.source === source));
-    document.getElementById('feePaidField').style.display = source === 'KOL' ? '' : 'none';
-    document.getElementById('kolField').style.display = source === 'KOL' ? '' : 'none';
-    document.getElementById('kol').required = source === 'KOL';
+    const isOwned = source === 'Owned';
+    document.getElementById('feePaidField').style.display = isOwned ? 'none' : '';
+    document.getElementById('kolField').style.display = isOwned ? 'none' : '';
+    document.getElementById('kol').required = !isOwned;
+    // With Creator name and Fee paid hidden, Platform and Date posted end up
+    // alone in the two-column grid — stretch them full-width so every field
+    // in the form lines up at the same length instead of shrinking to half.
+    document.getElementById('platformField').classList.toggle('full', isOwned);
+    document.getElementById('datePostedField').classList.toggle('full', isOwned);
     loadSummary();
     loadManifest();
   }
