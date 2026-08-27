@@ -327,13 +327,15 @@ function normalizeItem(platform, item) {
 // free, built-in access to the Sheet, so the Worker just hands it the data.
 
 async function pushToSheets(env) {
-  const content = (await env.DB.prepare('SELECT * FROM content ORDER BY created_at').all()).results;
-  const summary = (await monthlySummary(env.DB)).rows;
+  const content = (await env.DB.prepare("SELECT * FROM content WHERE source = 'KOL' ORDER BY created_at").all()).results;
+  const ownedContent = (await env.DB.prepare("SELECT * FROM content WHERE source = 'Owned' ORDER BY created_at").all()).results;
+  const summary = (await monthlySummary(env.DB, 'KOL')).rows;
+  const ownedSummary = (await monthlySummary(env.DB, 'Owned')).rows;
 
   const res = await fetch(env.APPS_SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content, summary }),
+    body: JSON.stringify({ content, summary, ownedContent, ownedSummary }),
   });
 
   const data = await res.json();
