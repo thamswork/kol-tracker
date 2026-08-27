@@ -320,7 +320,7 @@
   <section>
     <h2>Log new content</h2>
     <form id="submitForm">
-      <div>
+      <div id="kolField">
         <label for="kol" id="kolLabel">Creator name</label>
         <input type="text" id="kol" required placeholder="e.g. @creatorname" />
       </div>
@@ -389,11 +389,18 @@
   const API_URL = 'https://kol-tracker-api.tyme-sak.workers.dev';
   let currentSource = 'KOL';
 
+  // Fixed handles for your own accounts — edit these to match your real
+  // Instagram and TikTok usernames. Used automatically when logging
+  // content under the "Our content" tab, so the field can stay hidden.
+  const OWNED_INSTAGRAM_HANDLE = '@raneerestaurant';
+  const OWNED_TIKTOK_HANDLE = '@raneerestaurant';
+
   function switchSource(source) {
     currentSource = source;
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.source === source));
     document.getElementById('feePaidField').style.display = source === 'KOL' ? '' : 'none';
-    document.getElementById('kolLabel').textContent = source === 'KOL' ? 'Creator name' : 'Account handle';
+    document.getElementById('kolField').style.display = source === 'KOL' ? '' : 'none';
+    document.getElementById('kol').required = source === 'KOL';
     loadSummary();
     loadManifest();
   }
@@ -408,9 +415,12 @@
     submitStatus.textContent = 'Logging...';
     submitStatus.className = '';
 
+    const platformValue = document.getElementById('platform').value;
+    const ownedHandle = platformValue === 'TikTok' ? OWNED_TIKTOK_HANDLE : OWNED_INSTAGRAM_HANDLE;
+
     const payload = {
-      kol: document.getElementById('kol').value,
-      platform: document.getElementById('platform').value,
+      kol: currentSource === 'Owned' ? ownedHandle : document.getElementById('kol').value,
+      platform: platformValue,
       url: document.getElementById('url').value,
       feePaid: document.getElementById('feePaid').value,
       datePosted: document.getElementById('datePosted').value,
