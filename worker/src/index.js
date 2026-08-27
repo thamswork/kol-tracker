@@ -145,16 +145,20 @@ async function testFetch(env, contentId) {
 }
 
 async function insertSnapshot(db, contentId, item) {
+  const numericLikes = typeof item.likes === 'number' ? item.likes : 0; // 'hidden' contributes 0, not NaN
   const rate =
     item.views && Number(item.views) > 0
-      ? (Number(item.likes || 0) + Number(item.comments || 0) + Number(item.shares || 0)) / Number(item.views)
+      ? (numericLikes + Number(item.comments || 0) + Number(item.shares || 0)) / Number(item.views)
       : null;
   await db
     .prepare(
       `INSERT INTO snapshots (content_id, views, likes, comments, shares, engagement_rate, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-    .bind(contentId, item.views || null, item.likes || null, item.comments || null, item.shares || null, rate, item.notes || null)
+    // No `|| null` here — item.views/likes/comments/shares are already
+    // properly null-vs-zero from normalizeItem(); re-applying `|| null`
+    // would just re-introduce the same "0 becomes blank" bug.
+    .bind(contentId, item.views ?? null, item.likes ?? null, item.comments ?? null, item.shares ?? null, rate, item.notes || null)
     .run();
 }
 
@@ -346,22 +350,33 @@ function extractTikTokId(url) {
   return m ? m[1] : null;
 }
 
+// Numeric fields need to preserve a real 0 (zero comments is valid data)
+// instead of falling back to null the way `||` would — `||` treats 0 as
+// falsy and wipes it out, which is what was blanking Comments/Shares.
+function numOrNull(v) {
+  return v === undefined || v === null || v === '' ? null : v;
+}
+
 function normalizeItem(platform, item) {
   if (platform === 'TikTok') {
-    const views = item.playCount || null;
+    const views = numOrNull(item.playCount);
     return {
       views,
-      likes: item.diggCount || null,
-      comments: item.commentCount || null,
-      shares: item.shareCount || null,
+      likes: numOrNull(item.diggCount),
+      comments: numOrNull(item.commentCount),
+      shares: numOrNull(item.shareCount),
       notes: views ? '' : 'No view count returned (photo posts sometimes report views differently than videos)',
     };
   }
-  const views = item.videoPlayCount || item.videoViewCount || null;
+  const views = numOrNull(item.videoPlayCount) ?? numOrNull(item.videoViewCount);
+  const likes = numOrNull(item.likesCount);
   return {
     views,
-    likes: item.likesCount || null,
-    comments: item.commentsCount || null,
+    // Instagram reports -1 when the creator has hidden the like count —
+    // that's a real platform state, not missing data, so it's labeled
+    // rather than shown as a confusing negative number.
+    likes: likes === -1 ? 'hidden' : likes,
+    comments: numOrNull(item.commentsCount),
     shares: null,
     notes: views ? 'Shares unavailable for Instagram (platform limitation)' : 'No view count (likely a photo/carousel post)',
   };
