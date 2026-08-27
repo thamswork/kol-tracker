@@ -704,6 +704,7 @@
 
   function formatNum(n) {
     if (n === undefined || n === null || n === '') return '—';
+    if (typeof n === 'string' && isNaN(Number(n))) return n; // e.g. "hidden"
     return Number(n).toLocaleString();
   }
 
