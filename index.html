@@ -359,6 +359,22 @@
     <div class="test-result" id="lastUpdated" style="margin-top:8px;"></div>
   </section>
 
+  <section id="pastMonthsSection" style="display:none;">
+    <h2>Past months</h2>
+    <table id="pastMonthsTable">
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Content</th>
+          <th>Views</th>
+          <th>Engagements</th>
+          <th>Spend</th>
+        </tr>
+      </thead>
+      <tbody id="pastMonthsBody"></tbody>
+    </table>
+  </section>
+
   <section>
     <h2>All tracked content</h2>
     <div class="section-toolbar">
@@ -374,10 +390,11 @@
           <th>Status</th>
           <th>Performance</th>
           <th>History</th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="manifestBody">
-        <tr><td colspan="7" class="empty-note">Loading...</td></tr>
+        <tr><td colspan="8" class="empty-note">Loading...</td></tr>
       </tbody>
     </table>
   </section>
@@ -494,6 +511,28 @@
         .join('');
       const updatedEl = document.getElementById('lastUpdated');
       updatedEl.textContent = latest.lastUpdated ? 'Last updated: ' + formatDate(latest.lastUpdated) : '';
+
+      // Past months: everything except the current/latest one, most recent first.
+      const pastSection = document.getElementById('pastMonthsSection');
+      const pastBody = document.getElementById('pastMonthsBody');
+      const pastRows = rows.slice(0, -1).reverse();
+      if (pastRows.length) {
+        pastSection.style.display = '';
+        pastBody.innerHTML = pastRows
+          .map(
+            (r) => `
+          <tr>
+            <td>${r.month}</td>
+            <td>${r.totalContentSeeded}</td>
+            <td>${formatNum(r.totalViews)}</td>
+            <td>${formatNum(r.totalEngagements)}</td>
+            <td>${r.totalSpend ? '$' + r.totalSpend : '—'}</td>
+          </tr>`
+          )
+          .join('');
+      } else {
+        pastSection.style.display = 'none';
+      }
     } catch (err) {
       console.error('Could not load summary', err);
     }
@@ -506,7 +545,7 @@
       const data = await res.json();
       const rows = data.rows || [];
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="7" class="empty-note">Nothing logged yet. Use the form above to add your first link.</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" class="empty-note">Nothing logged yet. Use the form above to add your first link.</td></tr>';
         return;
       }
       body.innerHTML = rows
@@ -526,14 +565,32 @@
             <div class="test-result" id="result-${r.id}"></div>
           </td>
           <td><button class="test-btn" onclick="toggleHistory('${r.id}', this)">Show history</button></td>
+          <td><button class="test-btn" onclick="deleteEntry('${r.id}')">Delete</button></td>
         </tr>
         <tr class="history-row" id="history-row-${r.id}" style="display:none;">
-          <td colspan="7"><div class="history-panel" id="history-panel-${r.id}"></div></td>
+          <td colspan="8"><div class="history-panel" id="history-panel-${r.id}"></div></td>
         </tr>`;
         })
         .join('');
     } catch (err) {
-      body.innerHTML = '<tr><td colspan="7" class="empty-note">Could not load: ' + err.message + '</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" class="empty-note">Could not load: ' + err.message + '</td></tr>';
+    }
+  }
+
+  async function deleteEntry(contentId) {
+    if (!confirm('Delete this entry and all of its recorded history? This can\'t be undone.')) return;
+    try {
+      const res = await fetch(API_URL + '/api/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentId }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      loadManifest();
+      loadSummary();
+    } catch (err) {
+      alert('Could not delete: ' + err.message);
     }
   }
 

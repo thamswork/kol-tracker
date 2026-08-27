@@ -59,6 +59,10 @@ export default {
         await pushToSheets(env);
         return json({ success: true }, cors);
       }
+      if (url.pathname === '/api/delete' && request.method === 'POST') {
+        const body = await request.json();
+        return json(await deleteContent(env.DB, body.contentId), cors);
+      }
       return json({ error: 'Not found' }, cors, 404);
     } catch (err) {
       return json({ error: String(err) }, cors, 500);
@@ -101,6 +105,16 @@ async function submitContent(db, params) {
     .run();
 
   return { success: true, contentId: id };
+}
+
+// Removes a content row and all of its recorded snapshots — used when
+// something was logged by mistake.
+async function deleteContent(db, contentId) {
+  if (!contentId) return { error: 'Missing contentId.' };
+  await db.prepare('DELETE FROM snapshots WHERE content_id = ?').bind(contentId).run();
+  const result = await db.prepare('DELETE FROM content WHERE id = ?').bind(contentId).run();
+  if (result.meta.changes === 0) return { error: 'No content found with that ID.' };
+  return { success: true };
 }
 
 function validatePostUrl(platform, url) {
@@ -286,6 +300,20 @@ async function fetchBatch(platform, urls, token) {
     const matched = matchUrl(platform, item, urls);
     if (matched) byUrl[matched] = normalizeItem(platform, item);
   }
+
+  // If nothing matched, say exactly why instead of a generic "no data" —
+  // either the actor genuinely found nothing, or it found something that
+  // our matching logic couldn't line up with the URL we submitted.
+  if (Object.keys(byUrl).length === 0) {
+    const diagnostic =
+      items.length === 0
+        ? 'Actor completed but returned 0 items — this post type may not be supported by this actor.'
+        : `Actor returned ${items.length} item(s), but none matched the submitted URL. First returned URL: ${
+            items[0].url || items[0].webVideoUrl || '(none)'
+          }`;
+    urls.forEach((u) => (byUrl[u] = { error: diagnostic }));
+  }
+
   return byUrl;
 }
 
