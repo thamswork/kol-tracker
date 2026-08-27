@@ -265,7 +265,10 @@ async function monthlySummary(db, source) {
 async function fetchBatch(platform, urls, token) {
   const actorId = platform === 'TikTok' ? ACTOR_TIKTOK_VIDEO : ACTOR_INSTAGRAM_POST;
   const endpoint = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${token}`;
-  const input = platform === 'TikTok' ? { postURLs: urls, shouldDownloadVideos: false } : { directUrls: urls, resultsType: 'details' };
+  const input =
+    platform === 'TikTok'
+      ? { postURLs: urls, shouldDownloadVideos: false }
+      : { startUrls: urls, maxItems: urls.length };
 
   let items;
   try {
