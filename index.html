@@ -675,18 +675,26 @@
     resultEl.textContent = '';
     resultEl.className = 'test-result';
 
+    // This can take a while (Apify scraping isn't instant), but it should
+    // never look stuck with no feedback — cut it off and say so clearly.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 110000);
+
     try {
       const res = await fetch(API_URL + '/api/test-fetch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contentId }),
+        signal: controller.signal,
       });
+      clearTimeout(timer);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       resultEl.textContent = `${formatNum(data.views)} views, ${formatNum(data.likes)} likes, ${formatNum(data.comments)} comments`;
       btn.textContent = 'Fetched';
     } catch (err) {
-      resultEl.textContent = 'Failed: ' + err.message;
+      const message = err.name === 'AbortError' ? 'Timed out after 110 seconds — the scraper may be too slow for this post.' : err.message;
+      resultEl.textContent = 'Failed: ' + message;
       resultEl.className = 'test-result err';
       btn.textContent = 'Run test';
     } finally {

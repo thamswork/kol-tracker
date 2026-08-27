@@ -278,7 +278,9 @@ async function monthlySummary(db, source) {
 
 async function fetchBatch(platform, urls, token) {
   const actorId = platform === 'TikTok' ? ACTOR_TIKTOK_VIDEO : ACTOR_INSTAGRAM_POST;
-  const endpoint = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${token}`;
+  // timeout=90 tells Apify itself to give up and return whatever it has
+  // after 90s rather than running indefinitely — this actor can be slow.
+  const endpoint = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${token}&timeout=90`;
   const input =
     platform === 'TikTok'
       ? { postURLs: urls, shouldDownloadVideos: false }
@@ -286,12 +288,25 @@ async function fetchBatch(platform, urls, token) {
 
   let items;
   try {
-    const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+    // A second, harder cutoff on our side — if Apify itself hangs past
+    // its own timeout param (shouldn't happen, but just in case), this
+    // stops the Worker from waiting forever and returning nothing to
+    // the browser, which is what "fetching forever" looks like.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 100000);
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
     if (!res.ok) throw new Error(`Apify HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
     items = await res.json();
   } catch (err) {
+    const message = err.name === 'AbortError' ? 'Timed out after 100 seconds waiting on Apify.' : String(err);
     const failed = {};
-    urls.forEach((u) => (failed[u] = { error: String(err) }));
+    urls.forEach((u) => (failed[u] = { error: message }));
     return failed;
   }
 
