@@ -406,7 +406,6 @@ async function fetchBatch(platform, urls, token) {
 
   return byUrl;
 }
-}
 
 // ---------- SHEETS SYNC (via your existing Apps Script, not Google's API) ----------
 //
