@@ -23,8 +23,7 @@
  *   (scheduled) daily cron               — fetches performance for all active content, then pushes to Sheets
  */
 
-const ACTOR_INSTAGRAM_POST = 'shu8hvrXbJbY3Eb9W'; // apify/instagram-scraper (raw ID, confirmed via dataset trace — apidojo's actor of a similar name is a different, unsuited actor)
-const ACTOR_TIKTOK_VIDEO = 'clockworks~tiktok-scraper';
+// Platform config lives in one place — see the PLATFORMS registry below.
 const REPORT_CHECKPOINTS = [7, 15, 30];
 
 export default {
@@ -117,18 +116,93 @@ async function deleteContent(db, contentId) {
   return { success: true };
 }
 
+// ---------- PLATFORMS ----------
+//
+// Everything platform-specific lives in ONE place. To support a new
+// platform later (YouTube, Facebook, etc.), add one entry here — nothing
+// else in the file needs to change. Each entry needs:
+//   actorId       — the Apify actor to call
+//   urlPatterns   — substrings that must appear in a valid post URL
+//                    (used to reject profile links at submission time)
+//   buildInput    — turns a list of URLs into this actor's expected
+//                    request body
+//   matchItem     — given one item Apify returned, figures out which of
+//                    our submitted URLs it corresponds to
+//   normalize     — maps this actor's raw field names onto our standard
+//                    shape: { views, likes, comments, shares, notes }
+const PLATFORMS = {
+  Instagram: {
+    actorId: 'shu8hvrXbJbY3Eb9W', // apify/instagram-scraper (raw ID — apidojo's similarly-named actor is a different, unsuited one; confirmed via dataset trace)
+    urlPatterns: ['/p/', '/reel/', '/tv/'],
+    invalidUrlError: 'That looks like a profile link, not a specific post. Paste the direct post or reel link.',
+    buildInput: (urls) => ({ directUrls: urls, resultsType: 'details' }),
+    matchItem: (item, urls) => {
+      const returned = item.url || '';
+      const direct = urls.find((u) => u === returned);
+      if (direct) return direct;
+      if (!item.shortCode) return returned || null;
+      return urls.find((u) => u.includes(item.shortCode)) || returned || null;
+    },
+    normalize: (item) => {
+      const views = numOrNull(item.videoPlayCount) ?? numOrNull(item.videoViewCount);
+      const likes = numOrNull(item.likesCount);
+      return {
+        views,
+        // Instagram reports -1 when the creator has hidden the like count —
+        // that's a real platform state, not missing data, so it's labeled
+        // rather than shown as a confusing negative number.
+        likes: likes === -1 ? 'hidden' : likes,
+        comments: numOrNull(item.commentsCount),
+        shares: null, // Instagram never exposes shares publicly, for anyone
+        notes: views ? 'Shares unavailable for Instagram (platform limitation)' : 'No view count (likely a photo/carousel post)',
+      };
+    },
+  },
+  TikTok: {
+    actorId: 'clockworks~tiktok-scraper',
+    urlPatterns: ['/video/', '/photo/'],
+    invalidUrlError: 'That looks like a profile link, not a specific video or photo post. Paste the direct link.',
+    buildInput: (urls) => ({ postURLs: urls, shouldDownloadVideos: false }),
+    matchItem: (item, urls) => {
+      const returned = item.webVideoUrl || '';
+      const direct = urls.find((u) => u === returned);
+      if (direct) return direct;
+      const idMatch = String(returned).match(/\/(?:video|photo)\/(\d+)/);
+      const code = idMatch ? idMatch[1] : null;
+      if (!code) return returned || null;
+      return urls.find((u) => u.includes(code)) || returned || null;
+    },
+    normalize: (item) => {
+      const views = numOrNull(item.playCount);
+      return {
+        views,
+        likes: numOrNull(item.diggCount),
+        comments: numOrNull(item.commentCount),
+        shares: numOrNull(item.shareCount),
+        notes: views ? '' : 'No view count returned (photo posts sometimes report views differently than videos)',
+      };
+    },
+  },
+};
+
+function platformConfig(platform) {
+  const config = PLATFORMS[platform];
+  if (!config) throw new Error(`Unknown platform: ${platform}. Supported: ${Object.keys(PLATFORMS).join(', ')}`);
+  return config;
+}
+
+// Numeric fields need to preserve a real 0 (zero comments is valid data)
+// instead of falling back to null the way `||` would — `||` treats 0 as
+// falsy and wipes it out, which is what was blanking Comments/Shares.
+function numOrNull(v) {
+  return v === undefined || v === null || v === '' ? null : v;
+}
+
 function validatePostUrl(platform, url) {
+  const config = platformConfig(platform);
   const lower = String(url).toLowerCase();
-  if (platform === 'Instagram') {
-    const ok = ['/p/', '/reel/', '/tv/'].some((s) => lower.includes(s));
-    if (!ok) return { ok: false, error: 'That looks like a profile link, not a specific post. Paste the direct post or reel link.' };
-  }
-  if (platform === 'TikTok') {
-    if (!lower.includes('/video/') && !lower.includes('/photo/')) {
-      return { ok: false, error: 'That looks like a profile link, not a specific video or photo post. Paste the direct link.' };
-    }
-  }
-  return { ok: true };
+  const ok = config.urlPatterns.some((p) => lower.includes(p));
+  return ok ? { ok: true } : { ok: false, error: config.invalidUrlError };
 }
 
 async function testFetch(env, contentId) {
@@ -281,14 +355,11 @@ async function monthlySummary(db, source) {
 // ---------- APIFY ----------
 
 async function fetchBatch(platform, urls, token) {
-  const actorId = platform === 'TikTok' ? ACTOR_TIKTOK_VIDEO : ACTOR_INSTAGRAM_POST;
+  const config = platformConfig(platform);
   // timeout=90 tells Apify itself to give up and return whatever it has
   // after 90s rather than running indefinitely — this actor can be slow.
-  const endpoint = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${token}&timeout=90`;
-  const input =
-    platform === 'TikTok'
-      ? { postURLs: urls, shouldDownloadVideos: false }
-      : { directUrls: urls, resultsType: 'details' };
+  const endpoint = `https://api.apify.com/v2/acts/${config.actorId}/run-sync-get-dataset-items?token=${token}&timeout=90`;
+  const input = config.buildInput(urls);
 
   let items;
   try {
@@ -316,8 +387,8 @@ async function fetchBatch(platform, urls, token) {
 
   const byUrl = {};
   for (const item of items) {
-    const matched = matchUrl(platform, item, urls);
-    if (matched) byUrl[matched] = normalizeItem(platform, item);
+    const matched = config.matchItem(item, urls);
+    if (matched) byUrl[matched] = config.normalize(item);
   }
 
   // If nothing matched, say exactly why instead of a generic "no data" —
@@ -335,51 +406,6 @@ async function fetchBatch(platform, urls, token) {
 
   return byUrl;
 }
-
-function matchUrl(platform, item, urls) {
-  const returned = item.url || item.webVideoUrl || '';
-  const direct = urls.find((u) => u === returned);
-  if (direct) return direct;
-  const code = platform === 'TikTok' ? extractTikTokId(returned) : item.shortCode;
-  if (!code) return returned || null;
-  return urls.find((u) => u.includes(code)) || returned || null;
-}
-
-function extractTikTokId(url) {
-  const m = String(url).match(/\/(?:video|photo)\/(\d+)/);
-  return m ? m[1] : null;
-}
-
-// Numeric fields need to preserve a real 0 (zero comments is valid data)
-// instead of falling back to null the way `||` would — `||` treats 0 as
-// falsy and wipes it out, which is what was blanking Comments/Shares.
-function numOrNull(v) {
-  return v === undefined || v === null || v === '' ? null : v;
-}
-
-function normalizeItem(platform, item) {
-  if (platform === 'TikTok') {
-    const views = numOrNull(item.playCount);
-    return {
-      views,
-      likes: numOrNull(item.diggCount),
-      comments: numOrNull(item.commentCount),
-      shares: numOrNull(item.shareCount),
-      notes: views ? '' : 'No view count returned (photo posts sometimes report views differently than videos)',
-    };
-  }
-  const views = numOrNull(item.videoPlayCount) ?? numOrNull(item.videoViewCount);
-  const likes = numOrNull(item.likesCount);
-  return {
-    views,
-    // Instagram reports -1 when the creator has hidden the like count —
-    // that's a real platform state, not missing data, so it's labeled
-    // rather than shown as a confusing negative number.
-    likes: likes === -1 ? 'hidden' : likes,
-    comments: numOrNull(item.commentsCount),
-    shares: null,
-    notes: views ? 'Shares unavailable for Instagram (platform limitation)' : 'No view count (likely a photo/carousel post)',
-  };
 }
 
 // ---------- SHEETS SYNC (via your existing Apps Script, not Google's API) ----------
