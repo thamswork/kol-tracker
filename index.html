@@ -88,7 +88,7 @@
     color: var(--text);
     padding: 10px 12px;
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 16px; /* iOS Safari auto-zooms the page on focus if an input is under 16px */
     font-weight: 400;
     font-family: inherit;
     transition: border-color 0.15s ease;
@@ -301,7 +301,14 @@
     form { grid-template-columns: 1fr; }
     table { font-size: 13px; }
     th, td { padding: 10px; }
+    .test-btn { padding: 8px 12px; min-height: 34px; } /* easier to tap accurately */
   }
+
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* smooth momentum scrolling on iOS */
+  }
+  .table-scroll table { min-width: 640px; } /* keeps columns readable; swipe to see the rest */
 </style>
 </head>
 <body>
@@ -361,6 +368,7 @@
 
   <section id="pastMonthsSection" style="display:none;">
     <h2>Past months</h2>
+    <div class="table-scroll">
     <table id="pastMonthsTable">
       <thead>
         <tr>
@@ -373,6 +381,7 @@
       </thead>
       <tbody id="pastMonthsBody"></tbody>
     </table>
+    </div>
   </section>
 
   <section>
@@ -380,6 +389,7 @@
     <div class="section-toolbar">
       <button class="test-btn" id="syncSheetsBtn" onclick="syncSheets()">Sync to Google Sheets</button>
     </div>
+    <div class="table-scroll">
     <table id="manifestTable">
       <thead>
         <tr>
@@ -397,6 +407,7 @@
         <tr><td colspan="8" class="empty-note">Loading...</td></tr>
       </tbody>
     </table>
+    </div>
   </section>
 
   <footer>Backed by Google Sheets. Performance data updates once a day.</footer>
@@ -625,7 +636,7 @@
       let html = '';
 
       if (reports.length) {
-        html += '<h3>Checkpoints</h3><table><tbody>';
+        html += '<h3>Checkpoints</h3><div class="table-scroll"><table><tbody>';
         html += reports
           .map(
             (r) => `
@@ -638,10 +649,10 @@
           </tr>`
           )
           .join('');
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
       }
 
-      html += '<h3 style="margin-top:16px;">Full timeline</h3><table><thead><tr><th>Date</th><th>Views</th><th>Likes</th><th>Comments</th><th>Shares</th></tr></thead><tbody>';
+      html += '<h3 style="margin-top:16px;">Full timeline</h3><div class="table-scroll"><table><thead><tr><th>Date</th><th>Views</th><th>Likes</th><th>Comments</th><th>Shares</th></tr></thead><tbody>';
       html += history
         .map(
           (h) => `
@@ -654,7 +665,7 @@
         </tr>`
         )
         .join('');
-      html += '</tbody></table>';
+      html += '</tbody></table></div>';
 
       panel.innerHTML = html;
     } catch (err) {
